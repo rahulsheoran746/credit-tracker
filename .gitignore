@@ -1,2 +1,34 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# Environment variables file
 .env
-__pycache__
+
+# VSCode settings (if using VSCode)
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# Python egg info
+*.egg-info/
+
+# Log files
+*.log
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+.cache
+
+# Pytest cache
+.pytest_cache/
