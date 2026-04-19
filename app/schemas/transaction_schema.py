@@ -22,9 +22,10 @@ class TransactionBlock(BaseModel):
 class MemberInfo(BaseModel):
     name: str
     phone: str
-    village: str
-    city: str
-    state: str
+    father_name: Optional[str] = None
+    village: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
 
 class MemberQuery(BaseModel):
     name: str
@@ -54,6 +55,7 @@ class TransactionDetail(BaseModel):
 class MemberTransactionsResponse(BaseModel):
     name: str
     phone: str
+    father_name: Optional[str] = None
     total_amount: float
     amount_paid: float
     remaining_amount: float

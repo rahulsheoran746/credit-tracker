@@ -4,7 +4,12 @@ logger = logging.getLogger(__name__)
 
 
 def _row_to_sweet(row) -> dict:
-    return {"id": row[0], "name": row[1], "rate_per_kg": float(row[2]), "description": row[3]}
+    return {
+        "id": row[0], "name": row[1], "rate_per_kg": float(row[2]),
+        "description": row[3],
+        "created_at": row[4].isoformat() if row[4] else None,
+        "updated_at": row[5].isoformat() if row[5] else None,
+    }
 
 
 class SweetService:
@@ -13,14 +18,14 @@ class SweetService:
 
     def get_all_sweets(self):
         with self.conn.cursor() as cur:
-            cur.execute("SELECT id, name, rate_per_kg, description FROM sweets ORDER BY name")
+            cur.execute("SELECT id, name, rate_per_kg, description, created_at, updated_at FROM sweets ORDER BY name")
             rows = cur.fetchall()
         return [_row_to_sweet(r) for r in rows]
 
     def get_sweet_by_id(self, sweet_id: int):
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, name, rate_per_kg, description FROM sweets WHERE id = %s",
+                "SELECT id, name, rate_per_kg, description, created_at, updated_at FROM sweets WHERE id = %s",
                 (sweet_id,),
             )
             row = cur.fetchone()
@@ -40,7 +45,7 @@ class SweetService:
     def update_sweet(self, sweet_id: int, rate_per_kg: float, description: str = ''):
         with self.conn.cursor() as cur:
             cur.execute(
-                "UPDATE sweets SET rate_per_kg = %s, description = %s WHERE id = %s RETURNING id",
+                "UPDATE sweets SET rate_per_kg = %s, description = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s RETURNING id",
                 (rate_per_kg, description.strip(), sweet_id),
             )
             row = cur.fetchone()

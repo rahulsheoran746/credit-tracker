@@ -11,25 +11,31 @@ class TransactionService:
         self.conn = conn
 
     def get_or_create_member(self, member_info):
-        name = member_info["name"]
-        phone = member_info["phone"]
-        village = member_info["village"]
-        city = member_info["city"]
-        state = member_info["state"]
+        def tc(s):
+            return ' '.join(w.capitalize() for w in s.strip().split()) if s else None
+
+        name        = tc(member_info.get("name"))
+        father_name = tc(member_info.get("father_name"))
+        phone       = member_info["phone"]
+        village     = tc(member_info.get("village"))
+        city        = tc(member_info.get("city"))
+        state       = tc(member_info.get("state"))
 
         with self.conn.cursor() as cur:
-            cur.execute(
-                "SELECT id FROM members WHERE name = %s AND phone = %s",
-                (name, phone),
-            )
+            # Phone is the unique identity — look up by phone alone
+            cur.execute("SELECT id FROM members WHERE phone = %s", (phone,))
             result = cur.fetchone()
             if result:
                 logger.info("Member already exists: id=%s", result[0])
                 return result[0]
 
             cur.execute(
-                "INSERT INTO members (name, phone, village, city, state) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                (name, phone, village, city, state),
+                """
+                INSERT INTO members (name, father_name, phone, village, city, state)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (name, father_name, phone, village, city, state),
             )
             member_id = cur.fetchone()[0]
             logger.info("Created new member: id=%s", member_id)
@@ -98,10 +104,13 @@ class TransactionService:
             raise
 
     def get_member_transactions(self, member_query: MemberQuery) -> Optional[MemberTransactionsResponse]:
+        # Lookup by phone (the unique identity). Name is accepted for compatibility
+        # but ignored — the stored name in the DB is the source of truth.
         sql = """
         SELECT
             m.name,
             m.phone,
+            m.father_name,
             SUM(t.total_amount)     AS total_amount,
             SUM(t.amount_paid)      AS amount_paid,
             SUM(t.remaining_amount) AS remaining_amount,
@@ -119,19 +128,20 @@ class TransactionService:
         FROM transactions t
         JOIN members m ON m.id = t.member_id
         JOIN transaction_sweets ts ON ts.transaction_id = t.id
-        WHERE m.name = %s AND m.phone = %s
-        GROUP BY m.name, m.phone
+        WHERE m.phone = %s
+        GROUP BY m.name, m.phone, m.father_name
         """
         with self.conn.cursor() as cur:
-            cur.execute(sql, (member_query.name, member_query.phone))
+            cur.execute(sql, (member_query.phone,))
             row = cur.fetchone()
             if not row:
                 return None
 
-            name, phone, total_amount, amount_paid, remaining_amount, transactions_json = row
+            name, phone, father_name, total_amount, amount_paid, remaining_amount, transactions_json = row
             return MemberTransactionsResponse(
                 name=name,
                 phone=phone,
+                father_name=father_name,
                 total_amount=total_amount,
                 amount_paid=amount_paid,
                 remaining_amount=remaining_amount,

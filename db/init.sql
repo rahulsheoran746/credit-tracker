@@ -4,18 +4,22 @@
 CREATE TABLE IF NOT EXISTS members (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    phone VARCHAR(15),
+    father_name VARCHAR(100),
+    phone VARCHAR(15) NOT NULL UNIQUE,
     village VARCHAR(100),
     city VARCHAR(100),
     state VARCHAR(100),
-    UNIQUE(name, phone)
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS sweets (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     rate_per_kg NUMERIC(10, 2) NOT NULL,
-    description TEXT
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS items (
