@@ -4,12 +4,11 @@ __pycache__/
 *$py.class
 
 # Virtual environments
-env/
 venv/
 .venv/
 
 # Environment variables file
-.env
+# .env
 
 # VSCode settings (if using VSCode)
 .vscode/

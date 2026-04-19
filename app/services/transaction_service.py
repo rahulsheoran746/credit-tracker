@@ -1,10 +1,14 @@
-import json
+import logging
 from typing import Optional
+from psycopg2.extras import Json
 from app.schemas.transaction_schema import MemberQuery, MemberTransactionsResponse
+
+logger = logging.getLogger(__name__)
+
+
 class TransactionService:
     def __init__(self, conn):
         self.conn = conn
-        self.cursor = conn.cursor()
 
     def get_or_create_member(self, member_info):
         name = member_info["name"]
@@ -12,130 +16,103 @@ class TransactionService:
         village = member_info["village"]
         city = member_info["city"]
         state = member_info["state"]
-        # Check if member already exists
-        self.cursor.execute(
-            "SELECT id FROM members WHERE name = %s AND phone = %s",
-            (name, phone)
-        )
-        result = self.cursor.fetchone()
 
-        if result:
-            member_id = result[0]
-            print(f"Member already exists with ID: {member_id}")
-        else:
-            self.cursor.execute(
-                "INSERT INTO members (name, phone, village, city, state) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                (name, phone, village, city, state)
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM members WHERE name = %s AND phone = %s",
+                (name, phone),
             )
-            member_id = self.cursor.fetchone()[0]
-            print(f"Created new member with ID: {member_id}")
-        return member_id
+            result = cur.fetchone()
+            if result:
+                logger.info("Member already exists: id=%s", result[0])
+                return result[0]
 
-    def get_item_type_id(self, transaction_type):
-        self.cursor.execute(
-            "SELECT id FROM items WHERE name = %s",
-            (transaction_type,)
-        )
-        result = self.cursor.fetchone()
-        if not result:
-            raise ValueError(f"Invalid transaction_type: {transaction_type}")
-        return result[0]
-
-    def insert_transaction(self, member_id, item_type_id, transaction_date, total_amount, amount_given, notes):
-        
-        # print("Inserting transaction:", member_id, item_type_id, transaction_date, total_amount, amount_given, notes)
-
-        self.cursor.execute(
-            """
-            INSERT INTO transactions (member_id, item_type_id, transaction_date, total_amount, amount_given, notes)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
-            """,
-            (member_id, item_type_id, transaction_date, total_amount, amount_given, notes)
-        )
-        return self.cursor.fetchone()[0]
+            cur.execute(
+                "INSERT INTO members (name, phone, village, city, state) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (name, phone, village, city, state),
+            )
+            member_id = cur.fetchone()[0]
+            logger.info("Created new member: id=%s", member_id)
+            return member_id
 
     def insert_transaction(self, member_id, total_amount, amount_paid, description=None):
-        # print("Inserting transaction:", member_id, total_amount, amount_paid, description)
-        self.cursor.execute(
-            """
-            INSERT INTO transactions (member_id, total_amount, amount_paid, description)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id
-            """,
-            (member_id, total_amount, amount_paid, description)
-        )
-        transaction_id = self.cursor.fetchone()[0]
-        print(f"Inserted Transaction with ID: {transaction_id}")
-        self.conn.commit() 
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO transactions (member_id, total_amount, amount_paid, description)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (member_id, total_amount, amount_paid, description),
+            )
+            transaction_id = cur.fetchone()[0]
+        logger.info("Staged transaction: id=%s", transaction_id)
         return transaction_id
+
     def insert_transaction_sweets(self, transaction_id, items, total_amount, amount_given, notes=None):
         remaining_amount = total_amount - amount_given
-        items_json = json.dumps(items)
-
-        self.cursor.execute(
-            """
-            INSERT INTO transaction_sweets (transaction_id, total_amount, amount_given, remaining_amount, items, notes)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (transaction_id, total_amount, amount_given, remaining_amount, items_json, notes)
-        )
-        self.conn.commit()
-        print(f"Inserted sweets transaction with ID: {transaction_id}")
-
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO transaction_sweets (transaction_id, total_amount, amount_given, remaining_amount, items, notes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (transaction_id, total_amount, amount_given, remaining_amount, Json(items), notes),
+            )
+        logger.info("Staged transaction_sweets for transaction_id=%s", transaction_id)
 
     def process_transaction_payload(self, payload: dict):
-        # print("Processing Transaction Payload:", payload)
-        member_info = payload["member"]
-        print("Member Info:", member_info)
-        member_id = self.get_or_create_member(member_info)
+        try:
+            member_id = self.get_or_create_member(payload["member"])
 
-        transaction_date = payload["transaction_date"]
-        transactions = payload["transactions"]
+            transactions = payload["transactions"]
+            total_amount = amount_given = 0
+            for t in transactions:
+                total_amount += t["total_amount"]
+                amount_given += t["amount_given"]
 
-        total_amount = sum(transaction["total_amount"] for transaction in transactions)
-        print("Total Amount:", total_amount)
-        amount_given = sum(transaction["amount_given"] for transaction in transactions)
-        print("Amount Given:", amount_given)
-        transaction_id = self.insert_transaction(
-                    member_id,
-                    total_amount,
-                    amount_given,
-                    payload['description']
-                )
-        for txn in transactions:
-            # Currently only handling "sweets", extend for others later
-            if txn['transaction_type'] == "sweets":
-                self.insert_transaction_sweets(
+            transaction_id = self.insert_transaction(
+                member_id,
+                total_amount,
+                amount_given,
+                payload.get("description"),
+            )
+
+            for txn in transactions:
+                if txn["transaction_type"] == "sweets":
+                    self.insert_transaction_sweets(
                         transaction_id=transaction_id,
                         items=txn["items"],
                         total_amount=txn["total_amount"],
                         amount_given=txn["amount_given"],
-                        notes=txn.get("notes")
+                        notes=txn.get("notes"),
                     )
-            elif txn['transaction_type'] == "cattle_feed":
-                pass
-            elif txn['transaction_type'] == "other":
-                pass
 
-        return {"status": "success", "member_id": member_id, "transactions_processed": len(transactions)}
+            self.conn.commit()
+            logger.info("Transaction committed: member_id=%s transaction_id=%s", member_id, transaction_id)
+            return {"status": "success", "member_id": member_id, "transactions_processed": len(transactions)}
 
+        except Exception:
+            self.conn.rollback()
+            logger.exception("Transaction failed, rolled back")
+            raise
 
     def get_member_transactions(self, member_query: MemberQuery) -> Optional[MemberTransactionsResponse]:
         sql = """
-        SELECT 
+        SELECT
             m.name,
             m.phone,
-            SUM(t.total_amount) AS total_amount,
-            SUM(t.amount_paid) AS amount_paid,
+            SUM(t.total_amount)     AS total_amount,
+            SUM(t.amount_paid)      AS amount_paid,
             SUM(t.remaining_amount) AS remaining_amount,
             json_agg(
                 json_build_object(
-                    'transaction_id', t.id,
+                    'transaction_id',   t.id,
                     'transaction_date', t.created_at,
-                    'total_amount', t.total_amount,
-                    'amount_paid', t.amount_paid,
+                    'total_amount',     t.total_amount,
+                    'amount_paid',      t.amount_paid,
                     'remaining_amount', t.remaining_amount,
-                    'items', ts.items
+                    'items',            ts.items
                 )
             ) AS transactions
         FROM transactions t
@@ -144,22 +121,18 @@ class TransactionService:
         WHERE m.name = %s AND m.phone = %s
         GROUP BY m.name, m.phone
         """
-        # print("Executing SQL:", sql)
         with self.conn.cursor() as cur:
             cur.execute(sql, (member_query.name, member_query.phone))
             row = cur.fetchone()
             if not row:
                 return None
 
-            # row is a tuple: (name, phone, total_amount, amount_paid, remaining_amount, transactions_json)
             name, phone, total_amount, amount_paid, remaining_amount, transactions_json = row
-            
-            # Construct and return Pydantic model
             return MemberTransactionsResponse(
                 name=name,
                 phone=phone,
                 total_amount=total_amount,
                 amount_paid=amount_paid,
                 remaining_amount=remaining_amount,
-                transactions=transactions_json
+                transactions=transactions_json,
             )
