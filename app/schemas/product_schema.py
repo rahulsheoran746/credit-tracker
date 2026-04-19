@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
-VALID_CATEGORIES = {'sweet', 'cattle_feed'}
+VALID_CATEGORIES = {'sweet', 'cattle_feed', 'wholesale'}
 
 
 class ProductCreate(BaseModel):
