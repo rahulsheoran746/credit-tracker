@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount_paid NUMERIC(10, 2) NOT NULL,
     remaining_amount NUMERIC(10, 2) GENERATED ALWAYS AS (total_amount - amount_paid) STORED,
     description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS transaction_sweets (
