@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.routes import member_routes, transaction_routes, sweet_routes
 from app.db import init_pool
 
@@ -17,6 +18,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Credit Tracker API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:4173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(sweet_routes.router)
 app.include_router(member_routes.router)
