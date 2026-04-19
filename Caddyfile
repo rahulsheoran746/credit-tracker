@@ -1,0 +1,16 @@
+# Caddy automatically issues + renews Let's Encrypt certificates.
+# Replace 'shivdiary.in' with your actual domain before deploying.
+
+shivdiary.in, www.shivdiary.in {
+    # Backend API: /api/* -> app:8000 (with /api prefix stripped)
+    handle_path /api/* {
+        reverse_proxy app:8000
+    }
+
+    # Everything else: serve the Vue SPA via the frontend container
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    encode gzip zstd
+}

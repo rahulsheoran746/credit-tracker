@@ -1,0 +1,75 @@
+# Production stack — runs on the VM.
+# Expects both repos cloned side-by-side:
+#   ~/credit-tracker            (this repo)
+#   ~/credit-tracker-frontend   (the Vue app)
+#
+# Start:   docker compose -f docker-compose.prod.yaml up -d
+# Stop:    docker compose -f docker-compose.prod.yaml down
+# Logs:    docker compose -f docker-compose.prod.yaml logs -f <service>
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: shiv-postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USER}"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: shiv-app
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../credit-tracker-frontend
+      args:
+        # API calls from the browser go to same origin + /api, which Caddy
+        # reverse-proxies to the 'app' service.
+        VITE_API_URL: /api
+    container_name: shiv-frontend
+    expose:
+      - "80"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: shiv-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
