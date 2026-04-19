@@ -14,7 +14,8 @@ class LineItem(BaseModel):
 
 
 class TransactionBlock(BaseModel):
-    items: List[LineItem]
+    type: str = 'sale'                # 'sale' | 'product_repay'
+    items: List[LineItem] = []        # empty for repayments
     total_amount: float
     amount_given: float
     notes: Optional[str] = None
@@ -58,10 +59,11 @@ class ItemDetail(BaseModel):
 class TransactionDetail(BaseModel):
     transaction_id: int
     transaction_date: str
+    type: str = 'sale'
     total_amount: float
     amount_paid: float
     remaining_amount: float
-    items: List[ItemDetail]
+    items: List[ItemDetail] = []
 
 
 class MemberTransactionsResponse(BaseModel):

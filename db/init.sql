@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
     member_id INT NOT NULL REFERENCES members(id),
+    type VARCHAR(20) NOT NULL DEFAULT 'sale',    -- 'sale' | 'product_repay' (more types later)
     total_amount NUMERIC(10, 2) NOT NULL,
     amount_paid NUMERIC(10, 2) NOT NULL,
     remaining_amount NUMERIC(10, 2) GENERATED ALWAYS AS (total_amount - amount_paid) STORED,
@@ -45,6 +46,29 @@ CREATE TABLE IF NOT EXISTS transaction_items (
     items JSONB NOT NULL,                    -- [{product_id, category, name, unit, quantity, price, amount}]
     notes TEXT
 );
+
+CREATE TABLE IF NOT EXISTS loans (
+    id SERIAL PRIMARY KEY,
+    member_id INT NOT NULL REFERENCES members(id),
+    principal NUMERIC(10, 2) NOT NULL,
+    interest_rate_monthly NUMERIC(5, 2) NOT NULL,
+    borrow_date DATE NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS loan_repayments (
+    id SERIAL PRIMARY KEY,
+    loan_id INT NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
+    amount NUMERIC(10, 2) NOT NULL,
+    repay_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_loans_member      ON loans(member_id);
+CREATE INDEX IF NOT EXISTS idx_loan_reps_loan    ON loan_repayments(loan_id);
 
 INSERT INTO products (category, name, unit, unit_size, price, description) VALUES
 ('sweet', 'Barfi',        'kg',  NULL, 400.00, 'Pure milk Mawa Barfi'),

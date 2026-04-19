@@ -41,18 +41,18 @@ class TransactionService:
             logger.info("Created new member: id=%s", member_id)
             return member_id
 
-    def insert_transaction(self, member_id, total_amount, amount_paid, description=None):
+    def insert_transaction(self, member_id, txn_type, total_amount, amount_paid, description=None):
         with self.conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO transactions (member_id, total_amount, amount_paid, description)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO transactions (member_id, type, total_amount, amount_paid, description)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (member_id, total_amount, amount_paid, description),
+                (member_id, txn_type, total_amount, amount_paid, description),
             )
             transaction_id = cur.fetchone()[0]
-        logger.info("Staged transaction: id=%s", transaction_id)
+        logger.info("Staged transaction: id=%s type=%s", transaction_id, txn_type)
         return transaction_id
 
     def insert_transaction_items(self, transaction_id, items, total_amount, amount_given, notes=None):
@@ -72,6 +72,10 @@ class TransactionService:
             member_id = self.get_or_create_member(payload["member"])
 
             transactions = payload["transactions"]
+            # One "entry" always maps to one transactions row.
+            # Pick the type from the first block (current UI only sends one block per save).
+            txn_type = transactions[0].get("type", "sale") if transactions else "sale"
+
             total_amount = amount_given = 0
             for t in transactions:
                 total_amount += t["total_amount"]
@@ -79,22 +83,26 @@ class TransactionService:
 
             transaction_id = self.insert_transaction(
                 member_id,
+                txn_type,
                 total_amount,
                 amount_given,
                 payload.get("description"),
             )
 
+            # Only sales have line items; repayments don't create a transaction_items row.
             for txn in transactions:
-                self.insert_transaction_items(
-                    transaction_id=transaction_id,
-                    items=txn["items"],
-                    total_amount=txn["total_amount"],
-                    amount_given=txn["amount_given"],
-                    notes=txn.get("notes"),
-                )
+                if txn.get("type", "sale") == "sale" and txn.get("items"):
+                    self.insert_transaction_items(
+                        transaction_id=transaction_id,
+                        items=txn["items"],
+                        total_amount=txn["total_amount"],
+                        amount_given=txn["amount_given"],
+                        notes=txn.get("notes"),
+                    )
 
             self.conn.commit()
-            logger.info("Transaction committed: member_id=%s transaction_id=%s", member_id, transaction_id)
+            logger.info("Transaction committed: member_id=%s transaction_id=%s type=%s",
+                        member_id, transaction_id, txn_type)
             return {"status": "success", "member_id": member_id, "transactions_processed": len(transactions)}
 
         except Exception:
@@ -117,16 +125,17 @@ class TransactionService:
                 json_build_object(
                     'transaction_id',   t.id,
                     'transaction_date', t.created_at,
+                    'type',             t.type,
                     'total_amount',     t.total_amount,
                     'amount_paid',      t.amount_paid,
                     'remaining_amount', t.remaining_amount,
-                    'items',            ts.items
+                    'items',            COALESCE(ts.items, '[]'::jsonb)
                 )
                 ORDER BY t.created_at DESC
             ) AS transactions
         FROM transactions t
         JOIN members m ON m.id = t.member_id
-        JOIN transaction_items ts ON ts.transaction_id = t.id
+        LEFT JOIN transaction_items ts ON ts.transaction_id = t.id
         WHERE m.phone = %s
         GROUP BY m.name, m.phone, m.father_name
         """
