@@ -114,6 +114,7 @@ class TransactionService:
                     'remaining_amount', t.remaining_amount,
                     'items',            ts.items
                 )
+                ORDER BY t.created_at DESC
             ) AS transactions
         FROM transactions t
         JOIN members m ON m.id = t.member_id
