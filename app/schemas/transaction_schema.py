@@ -1,22 +1,23 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Any
+from pydantic import BaseModel
+from typing import List, Optional
 from datetime import datetime
 
 
-class SweetItem(BaseModel):
-    item_id: int
+class LineItem(BaseModel):
+    product_id: int
+    category: str            # 'sweet' | 'cattle_feed'
     name: str
-    quantity_kg: float
-    rate_per_kg: float
+    unit: str                # 'kg' | 'bag'
+    quantity: float
+    price: float             # price per unit
     amount: float
 
 
 class TransactionBlock(BaseModel):
-    transaction_type: str  # e.g. "sweets", "cattle_feed", etc.
-    items: List[SweetItem]
+    items: List[LineItem]
     total_amount: float
     amount_given: float
-    notes: Optional[str] = None  # Optional for cattle_feed or other types
+    notes: Optional[str] = None
 
 
 class MemberInfo(BaseModel):
@@ -27,9 +28,11 @@ class MemberInfo(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
 
+
 class MemberQuery(BaseModel):
     name: str
     phone: str
+
 
 class TransactionPayload(BaseModel):
     member: MemberInfo
@@ -37,20 +40,29 @@ class TransactionPayload(BaseModel):
     transaction_date: datetime
     description: Optional[str] = None
 
+
 class ItemDetail(BaseModel):
-    item_id: int
+    # Supports both the new schema and legacy sweet rows (quantity_kg/rate_per_kg)
+    product_id: Optional[int] = None
+    item_id: Optional[int] = None
+    category: Optional[str] = None
     name: str
-    quantity_kg: float
+    unit: Optional[str] = None
+    quantity: Optional[float] = None
+    price: Optional[float] = None
     amount: float
-    rate_per_kg: float
+    quantity_kg: Optional[float] = None
+    rate_per_kg: Optional[float] = None
+
 
 class TransactionDetail(BaseModel):
     transaction_id: int
-    transaction_date: str  # or datetime
+    transaction_date: str
     total_amount: float
     amount_paid: float
     remaining_amount: float
     items: List[ItemDetail]
+
 
 class MemberTransactionsResponse(BaseModel):
     name: str

@@ -55,17 +55,17 @@ class TransactionService:
         logger.info("Staged transaction: id=%s", transaction_id)
         return transaction_id
 
-    def insert_transaction_sweets(self, transaction_id, items, total_amount, amount_given, notes=None):
+    def insert_transaction_items(self, transaction_id, items, total_amount, amount_given, notes=None):
         remaining_amount = total_amount - amount_given
         with self.conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO transaction_sweets (transaction_id, total_amount, amount_given, remaining_amount, items, notes)
+                INSERT INTO transaction_items (transaction_id, total_amount, amount_given, remaining_amount, items, notes)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (transaction_id, total_amount, amount_given, remaining_amount, Json(items), notes),
             )
-        logger.info("Staged transaction_sweets for transaction_id=%s", transaction_id)
+        logger.info("Staged transaction_items for transaction_id=%s", transaction_id)
 
     def process_transaction_payload(self, payload: dict):
         try:
@@ -85,14 +85,13 @@ class TransactionService:
             )
 
             for txn in transactions:
-                if txn["transaction_type"] == "sweets":
-                    self.insert_transaction_sweets(
-                        transaction_id=transaction_id,
-                        items=txn["items"],
-                        total_amount=txn["total_amount"],
-                        amount_given=txn["amount_given"],
-                        notes=txn.get("notes"),
-                    )
+                self.insert_transaction_items(
+                    transaction_id=transaction_id,
+                    items=txn["items"],
+                    total_amount=txn["total_amount"],
+                    amount_given=txn["amount_given"],
+                    notes=txn.get("notes"),
+                )
 
             self.conn.commit()
             logger.info("Transaction committed: member_id=%s transaction_id=%s", member_id, transaction_id)
@@ -127,7 +126,7 @@ class TransactionService:
             ) AS transactions
         FROM transactions t
         JOIN members m ON m.id = t.member_id
-        JOIN transaction_sweets ts ON ts.transaction_id = t.id
+        JOIN transaction_items ts ON ts.transaction_id = t.id
         WHERE m.phone = %s
         GROUP BY m.name, m.phone, m.father_name
         """

@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import member_routes, transaction_routes, sweet_routes
+from app.routes import member_routes, transaction_routes, product_routes
 from app.db import init_pool
 
 logging.basicConfig(
@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(sweet_routes.router)
+app.include_router(product_routes.router)
 app.include_router(member_routes.router)
 app.include_router(transaction_routes.router)
 

@@ -13,18 +13,17 @@ CREATE TABLE IF NOT EXISTS members (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS sweets (
+CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    rate_per_kg NUMERIC(10, 2) NOT NULL,
+    category VARCHAR(20) NOT NULL,           -- 'sweet' | 'cattle_feed' (extensible)
+    name TEXT NOT NULL,
+    unit VARCHAR(10) NOT NULL,               -- 'kg' | 'bag'
+    unit_size NUMERIC(10, 2),                -- e.g. 50 for a 50kg bag; NULL for sweets
+    price NUMERIC(10, 2) NOT NULL,           -- per unit
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS items (
-    id SERIAL PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(category, name)
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -37,34 +36,30 @@ CREATE TABLE IF NOT EXISTS transactions (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS transaction_sweets (
+CREATE TABLE IF NOT EXISTS transaction_items (
     id SERIAL PRIMARY KEY,
     transaction_id INT REFERENCES transactions(id) ON DELETE CASCADE,
     total_amount NUMERIC(10, 2) NOT NULL,
     amount_given NUMERIC(10, 2) NOT NULL,
     remaining_amount NUMERIC(10, 2) NOT NULL,
-    items JSONB NOT NULL,
+    items JSONB NOT NULL,                    -- [{product_id, category, name, unit, quantity, price, amount}]
     notes TEXT
 );
 
-INSERT INTO items (name) VALUES
-('sweets'), ('money_borrow'), ('cattle_feed'), ('bulk_items'), ('repay')
-ON CONFLICT (name) DO NOTHING;
-
-INSERT INTO sweets (name, rate_per_kg, description) VALUES
-('Barfi', 400.00, 'Pure milk Mawa Barfi'),
-('Besan barfi', 350.00, 'Pure Desi ghee besan burfi'),
-('Bhujia', 200.00, 'Hand made Bhujia'),
-('Boondi', 260.00, 'Pure Desi ghee besan boondi'),
-('Dahi', 60.00, 'Dahi'),
-('Ghee', 750.00, 'Pure desi ghee'),
-('Gulab Jamun', 160.00, 'Pure Ghee Gulab Jamun'),
-('Kaju katli', 700.00, 'Pure Kaju Katlis contains only Kaju'),
-('Kalakand', 400.00, 'Milk cake made with condensed milk'),
-('Laddu', 280.00, 'Classic besan laddu'),
-('Matar', 100.00, 'Green frosted pees'),
-('Paneer', 300.00, 'Panner with high protein'),
-('Peda', 400.00, 'Milk-based peda'),
-('Rajbhog', 180.00, 'Sponge rajbhog with kesar and pista'),
-('Rasgulla', 150.00, 'Soft and spongy rasgulla')
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO products (category, name, unit, unit_size, price, description) VALUES
+('sweet', 'Barfi',        'kg',  NULL, 400.00, 'Pure milk Mawa Barfi'),
+('sweet', 'Besan barfi',  'kg',  NULL, 350.00, 'Pure Desi ghee besan burfi'),
+('sweet', 'Bhujia',       'kg',  NULL, 200.00, 'Hand made Bhujia'),
+('sweet', 'Boondi',       'kg',  NULL, 260.00, 'Pure Desi ghee besan boondi'),
+('sweet', 'Dahi',         'kg',  NULL,  60.00, 'Dahi'),
+('sweet', 'Ghee',         'kg',  NULL, 750.00, 'Pure desi ghee'),
+('sweet', 'Gulab Jamun',  'kg',  NULL, 160.00, 'Pure Ghee Gulab Jamun'),
+('sweet', 'Kaju katli',   'kg',  NULL, 700.00, 'Pure Kaju Katlis contains only Kaju'),
+('sweet', 'Kalakand',     'kg',  NULL, 400.00, 'Milk cake made with condensed milk'),
+('sweet', 'Laddu',        'kg',  NULL, 280.00, 'Classic besan laddu'),
+('sweet', 'Matar',        'kg',  NULL, 100.00, 'Green frosted pees'),
+('sweet', 'Paneer',       'kg',  NULL, 300.00, 'Panner with high protein'),
+('sweet', 'Peda',         'kg',  NULL, 400.00, 'Milk-based peda'),
+('sweet', 'Rajbhog',      'kg',  NULL, 180.00, 'Sponge rajbhog with kesar and pista'),
+('sweet', 'Rasgulla',     'kg',  NULL, 150.00, 'Soft and spongy rasgulla')
+ON CONFLICT (category, name) DO NOTHING;
