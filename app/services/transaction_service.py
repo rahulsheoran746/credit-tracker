@@ -41,18 +41,34 @@ class TransactionService:
             logger.info("Created new member: id=%s", member_id)
             return member_id
 
-    def insert_transaction(self, member_id, txn_type, total_amount, amount_paid, description=None):
+    def insert_transaction(self, member_id, txn_type, total_amount, amount_paid,
+                           description=None, transaction_date=None):
+        """
+        transaction_date: optional datetime to override DB default CURRENT_TIMESTAMP.
+        Used for backdated entries (e.g. a paper-ledger entry being digitised at night).
+        """
         with self.conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO transactions (member_id, type, total_amount, amount_paid, description)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (member_id, txn_type, total_amount, amount_paid, description),
-            )
+            if transaction_date is not None:
+                cur.execute(
+                    """
+                    INSERT INTO transactions (member_id, type, total_amount, amount_paid, description, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (member_id, txn_type, total_amount, amount_paid, description, transaction_date),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO transactions (member_id, type, total_amount, amount_paid, description)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (member_id, txn_type, total_amount, amount_paid, description),
+                )
             transaction_id = cur.fetchone()[0]
-        logger.info("Staged transaction: id=%s type=%s", transaction_id, txn_type)
+        logger.info("Staged transaction: id=%s type=%s backdated=%s",
+                    transaction_id, txn_type, transaction_date is not None)
         return transaction_id
 
     def insert_transaction_items(self, transaction_id, items, total_amount, amount_given, notes=None):
@@ -87,6 +103,7 @@ class TransactionService:
                 total_amount,
                 amount_given,
                 payload.get("description"),
+                transaction_date=payload.get("transaction_date"),
             )
 
             # Only sales have line items; repayments don't create a transaction_items row.
