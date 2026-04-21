@@ -3,7 +3,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import bcrypt
+from dotenv import load_dotenv
 from jose import JWTError, jwt
+
+# Load the .env file even if it hasn't been loaded by another module yet.
+# load_dotenv is idempotent and a no-op when env is already populated.
+load_dotenv()
 
 # JWT config — read from env so we don't commit secrets
 JWT_SECRET    = os.getenv("JWT_SECRET", "CHANGE_ME_IN_PRODUCTION")
