@@ -191,7 +191,6 @@ class LoanService:
             )
             new_id = cur.fetchone()[0]
         self.conn.commit()
-        logger.info("Loan created: id=%s member_id=%s principal=%s", new_id, member_id, principal)
         return self.get_loan(new_id)
 
     def add_repayment(self, loan_id, amount, repay_date, notes=None):
@@ -215,5 +214,4 @@ class LoanService:
                 (loan_id,),
             )
         self.conn.commit()
-        logger.info("Repayment recorded: loan_id=%s amount=%s", loan_id, amount)
         return self.get_loan(loan_id)

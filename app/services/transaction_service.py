@@ -26,7 +26,6 @@ class TransactionService:
             cur.execute("SELECT id FROM members WHERE phone = %s", (phone,))
             result = cur.fetchone()
             if result:
-                logger.info("Member already exists: id=%s", result[0])
                 return result[0]
 
             cur.execute(
@@ -38,7 +37,6 @@ class TransactionService:
                 (name, father_name, phone, village, city, state),
             )
             member_id = cur.fetchone()[0]
-            logger.info("Created new member: id=%s", member_id)
             return member_id
 
     def insert_transaction(self, member_id, txn_type, total_amount, amount_paid,
@@ -67,8 +65,6 @@ class TransactionService:
                     (member_id, txn_type, total_amount, amount_paid, description),
                 )
             transaction_id = cur.fetchone()[0]
-        logger.info("Staged transaction: id=%s type=%s backdated=%s",
-                    transaction_id, txn_type, transaction_date is not None)
         return transaction_id
 
     def insert_transaction_items(self, transaction_id, items, total_amount, amount_given, notes=None):
@@ -81,7 +77,6 @@ class TransactionService:
                 """,
                 (transaction_id, total_amount, amount_given, remaining_amount, Json(items), notes),
             )
-        logger.info("Staged transaction_items for transaction_id=%s", transaction_id)
 
     def process_transaction_payload(self, payload: dict):
         try:
@@ -118,8 +113,6 @@ class TransactionService:
                     )
 
             self.conn.commit()
-            logger.info("Transaction committed: member_id=%s transaction_id=%s type=%s",
-                        member_id, transaction_id, txn_type)
             return {"status": "success", "member_id": member_id, "transactions_processed": len(transactions)}
 
         except Exception:

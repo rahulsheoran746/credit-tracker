@@ -1,6 +1,19 @@
 -- Runs automatically when the PostgreSQL container starts for the first time.
 -- If the volume already has data this file is skipped entirely.
 
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(15),
+    role VARCHAR(20) NOT NULL DEFAULT 'worker',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS members (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,

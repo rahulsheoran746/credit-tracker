@@ -62,7 +62,6 @@ class ProductService:
             )
             new_id = cur.fetchone()[0]
         self.conn.commit()
-        logger.info("Product created: id=%s category=%s name=%s", new_id, category, name)
         return self.get_by_id(new_id)
 
     def update(self, product_id: int, price: float, unit_size: float = None, description: str = ''):
@@ -83,5 +82,4 @@ class ProductService:
         if not row:
             return None
         self.conn.commit()
-        logger.info("Product updated: id=%s", product_id)
         return self.get_by_id(product_id)

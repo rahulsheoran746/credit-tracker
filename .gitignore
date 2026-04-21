@@ -7,8 +7,10 @@ __pycache__/
 venv/
 .venv/
 
-# Environment variables file
-# .env
+# Environment variables file — NEVER commit secrets
+.env
+.env.*
+!.env.example
 
 # VSCode settings (if using VSCode)
 .vscode/

@@ -30,3 +30,13 @@ def get_connection():
         yield conn
     finally:
         _pool.putconn(conn)
+
+
+def get_connection_sync():
+    """
+    Non-generator version for one-off usage at startup (e.g. admin bootstrap).
+    Remember to .close() — does NOT return to the pool.
+    """
+    return psycopg2.connect(
+        host=DB_HOST, dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, port=DB_PORT,
+    )

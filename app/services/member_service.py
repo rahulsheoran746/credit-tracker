@@ -63,7 +63,6 @@ def create_or_get_member(conn, member: MemberCreate):
         cur.execute("SELECT id, name FROM members WHERE phone = %s", (member.phone,))
         row = cur.fetchone()
         if row:
-            logger.info("Existing member returned: id=%s (stored name=%s)", row[0], row[1])
             return {
                 "id": row[0],
                 "message": f"Phone already registered as '{row[1]}' — using that record.",
@@ -86,7 +85,6 @@ def create_or_get_member(conn, member: MemberCreate):
         )
         new_id = cur.fetchone()[0]
         conn.commit()
-        logger.info("New member created: id=%s", new_id)
         return {"id": new_id, "message": "New member created"}
 
 
@@ -128,5 +126,4 @@ def update_member(conn, member_id: int, member: MemberUpdate):
     if not row:
         return None
     conn.commit()
-    logger.info("Member updated: id=%s", member_id)
     return {"id": member_id, "message": "Member updated"}
