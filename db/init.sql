@@ -98,5 +98,23 @@ INSERT INTO products (category, name, unit, unit_size, price, description) VALUE
 ('sweet', 'Paneer',       'kg',  NULL, 300.00, 'Panner with high protein'),
 ('sweet', 'Peda',         'kg',  NULL, 400.00, 'Milk-based peda'),
 ('sweet', 'Rajbhog',      'kg',  NULL, 180.00, 'Sponge rajbhog with kesar and pista'),
-('sweet', 'Rasgulla',     'kg',  NULL, 150.00, 'Soft and spongy rasgulla')
+('sweet', 'Rasgulla',     'kg',  NULL, 150.00, 'Soft and spongy rasgulla'),
+
+-- Cattle Feed (Tiwana Nutrition catalogue — prices are approximate dealer rates, adjust after import)
+('cattle_feed', 'Tiwana Calf Starter Plus', 'bag', 50, 1400.00, 'Balanced starter feed for young calves; supports early growth and immunity.'),
+('cattle_feed', 'Tiwana Calf Grower',       'bag', 50, 1300.00, 'For calves aged 3-6 months; builds stronger future dairy animals.'),
+('cattle_feed', 'Tiwana 35 Protein',        'bag', 50, 1500.00, 'High-protein (35%) formulation for growing and high-demand animals.'),
+('cattle_feed', 'Tiwana Heifer Dry',        'bag', 50, 1200.00, 'Nutritional support for first-time pregnant heifers.'),
+('cattle_feed', 'Tiwana Dry Bovine',        'bag', 50, 1150.00, 'Formulated for the dry cow period before calving.'),
+('cattle_feed', 'Tiwana T-20 Dry',          'bag', 50, 1150.00, 'Alternative dry-cow feed with balanced minerals.'),
+('cattle_feed', 'Tiwana T-20 Fresher',      'bag', 50, 1250.00, 'Post-calving nutrition for fresh cows to boost early-lactation recovery.'),
+('cattle_feed', 'Tiwana 8000',              'bag', 50, 1250.00, 'Balanced diet for milking animals yielding up to 18 L/day.'),
+('cattle_feed', 'Tiwana Milk Plus',         'bag', 50, 1300.00, 'Enhanced formulation to improve milk yield in lactating animals.'),
+('cattle_feed', 'Tiwana 10000',             'bag', 50, 1400.00, 'Premium milking range for high-yielding dairy animals.'),
+('cattle_feed', 'Tiwana Silage Plus',       'bag', 50, 1100.00, 'Feed supplement for silage-based diets.'),
+
+-- Wholesale / bulk boxes
+('wholesale', 'Rasgulla Box',    'box', 20, 3000.00, '20kg bulk rasgulla for events and wholesale orders.'),
+('wholesale', 'Gulab Jamun Box', 'box', 20, 3200.00, '20kg bulk gulab jamun for events and wholesale orders.'),
+('wholesale', 'Dahi Box',        'box', 15,  900.00, '15kg bulk dahi for wholesale orders.')
 ON CONFLICT (category, name) DO NOTHING;
