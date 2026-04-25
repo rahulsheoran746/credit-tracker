@@ -21,6 +21,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), conn=Depends(get_conne
     user = UserService(conn).get_by_id(user_id)
     if not user or not user["is_active"]:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User disabled")
+
+    # Token-version check — invalidates old JWTs after a password change/reset.
+    # The session was valid when issued (tv=N), but the DB now has tv=N+1, so this
+    # token belongs to a since-superseded session and we kick it out.
+    if payload.get("tv", 0) != user.get("token_version", 0):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired (password changed elsewhere)",
+        )
     return user
 
 

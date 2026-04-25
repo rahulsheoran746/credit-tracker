@@ -6,7 +6,8 @@ logger = logging.getLogger(__name__)
 
 
 def _row_to_user(row, include_hash=False) -> dict:
-    # row order: id, username, password_hash, name, phone, role, is_active, must_change_password, created_at, updated_at
+    # row order: id, username, password_hash, name, phone, role, is_active,
+    #            must_change_password, token_version, created_at, updated_at
     out = {
         "id": row[0],
         "username": row[1],
@@ -15,15 +16,19 @@ def _row_to_user(row, include_hash=False) -> dict:
         "role": row[5],
         "is_active": row[6],
         "must_change_password": row[7],
-        "created_at": row[8].isoformat() if row[8] else None,
-        "updated_at": row[9].isoformat() if row[9] else None,
+        "token_version": row[8],
+        "created_at": row[9].isoformat() if row[9] else None,
+        "updated_at": row[10].isoformat() if row[10] else None,
     }
     if include_hash:
         out["password_hash"] = row[2]
     return out
 
 
-_SELECT = "id, username, password_hash, name, phone, role, is_active, must_change_password, created_at, updated_at"
+_SELECT = (
+    "id, username, password_hash, name, phone, role, is_active, "
+    "must_change_password, token_version, created_at, updated_at"
+)
 
 
 class UserService:
@@ -31,8 +36,14 @@ class UserService:
         self.conn = conn
 
     def get_by_username(self, username: str, include_hash=False):
+        # Username is case-insensitive — normalise the input. Stored values are
+        # already lowercase (enforced in create()), but LOWER() in the query
+        # protects us if any legacy mixed-case rows exist.
         with self.conn.cursor() as cur:
-            cur.execute(f"SELECT {_SELECT} FROM users WHERE username = %s", (username,))
+            cur.execute(
+                f"SELECT {_SELECT} FROM users WHERE username = LOWER(%s)",
+                (username.strip(),),
+            )
             row = cur.fetchone()
         return _row_to_user(row, include_hash=include_hash) if row else None
 
@@ -62,14 +73,16 @@ class UserService:
     def create(self, username, name, phone, role, password):
         if role not in ROLES:
             raise ValueError(f"Invalid role. Allowed: {sorted(ROLES)}")
-        if not username.strip():
+        # Usernames are case-insensitive — store lowercased.
+        username = (username or "").strip().lower()
+        if not username:
             raise ValueError("Username is required")
         if len(password) < 6:
             raise ValueError("Password must be at least 6 characters")
 
         with self.conn.cursor() as cur:
-            # Check unique username
-            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+            # Uniqueness check is also case-insensitive
+            cur.execute("SELECT id FROM users WHERE username = LOWER(%s)", (username,))
             if cur.fetchone():
                 raise ValueError("Username is already taken")
 
@@ -79,7 +92,7 @@ class UserService:
                 VALUES (%s, %s, %s, %s, %s, TRUE)
                 RETURNING id
                 """,
-                (username.strip(), hash_password(password), name.strip(), phone, role),
+                (username, hash_password(password), name.strip(), phone, role),
             )
             new_id = cur.fetchone()[0]
         self.conn.commit()
@@ -109,12 +122,21 @@ class UserService:
         return self.get_by_id(user_id)
 
     def reset_password(self, user_id, new_password, set_must_change=True):
+        """
+        Admin-initiated password reset. Bumps token_version so all of the
+        target user's existing sessions (incl. the device they're on) are kicked
+        out — they must log in fresh with the new temp password.
+        """
         if len(new_password) < 6:
             raise ValueError("Password must be at least 6 characters")
         with self.conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE users SET password_hash = %s, must_change_password = %s, updated_at = CURRENT_TIMESTAMP
+                UPDATE users
+                SET password_hash = %s,
+                    must_change_password = %s,
+                    token_version = token_version + 1,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s RETURNING id
                 """,
                 (hash_password(new_password), set_must_change, user_id),
@@ -126,10 +148,14 @@ class UserService:
         return True
 
     def change_own_password(self, user_id, current_password, new_password):
+        """
+        User self-changes their password. Bumps token_version so OTHER devices
+        get logged out. Returns the new token_version so the caller can mint a
+        fresh JWT for the current device (keeping it logged in).
+        """
         user = self.get_by_id(user_id)
         if not user:
-            return False
-        # Pull the hash
+            return None
         with self.conn.cursor() as cur:
             cur.execute("SELECT password_hash FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
@@ -140,13 +166,19 @@ class UserService:
         with self.conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE users SET password_hash = %s, must_change_password = FALSE, updated_at = CURRENT_TIMESTAMP
+                UPDATE users
+                SET password_hash = %s,
+                    must_change_password = FALSE,
+                    token_version = token_version + 1,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
+                RETURNING token_version
                 """,
                 (hash_password(new_password), user_id),
             )
+            new_tv = cur.fetchone()[0]
         self.conn.commit()
-        return True
+        return new_tv
 
 
 def bootstrap_admin_if_empty(conn):

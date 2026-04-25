@@ -31,7 +31,9 @@ def login(req: LoginRequest, conn=Depends(get_connection)):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     rate_limit.clear(rl_key)
-    token = create_access_token(user["id"], user["username"], user["role"])
+    token = create_access_token(
+        user["id"], user["username"], user["role"], user["token_version"],
+    )
     log_action(conn, user, "login", "user", user["id"])
     return {"access_token": token, "token_type": "bearer", "user": user}
 
@@ -47,9 +49,25 @@ def change_password(
     user=Depends(get_current_user),
     conn=Depends(get_connection),
 ):
+    """
+    Self-change password. Returns a fresh JWT (with the bumped token_version)
+    so the user's CURRENT device stays logged in. All their OTHER devices
+    will fail their next request and get bounced to login.
+    """
+    svc = UserService(conn)
     try:
-        UserService(conn).change_own_password(user["id"], req.current_password, req.new_password)
+        new_tv = svc.change_own_password(user["id"], req.current_password, req.new_password)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    if new_tv is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
     log_action(conn, user, "update", "user", user["id"], {"field": "password"})
-    return {"status": "ok"}
+    new_token = create_access_token(user["id"], user["username"], user["role"], new_tv)
+    refreshed = svc.get_by_id(user["id"])
+    return {
+        "status": "ok",
+        "access_token": new_token,
+        "token_type": "bearer",
+        "user": refreshed,
+    }
