@@ -17,6 +17,8 @@ def process_transaction(
     try:
         service = TransactionService(conn)
         result = service.process_transaction_payload(payload.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

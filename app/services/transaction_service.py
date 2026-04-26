@@ -87,6 +87,15 @@ class TransactionService:
                 (transaction_id, total_amount, amount_given, remaining_amount, Json(items), notes),
             )
 
+    def _get_outstanding(self, member_id: int) -> float:
+        """Sum of remaining_amount across all transactions for this member."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(SUM(remaining_amount), 0) FROM transactions WHERE member_id = %s",
+                (member_id,),
+            )
+            return float(cur.fetchone()[0] or 0)
+
     def process_transaction_payload(self, payload: dict):
         try:
             member_id = self.get_or_create_member(payload["member"])
@@ -95,6 +104,25 @@ class TransactionService:
             # One "entry" always maps to one transactions row.
             # Pick the type from the first block (current UI only sends one block per save).
             txn_type = transactions[0].get("type", "sale") if transactions else "sale"
+
+            # Returns: validate that the customer actually has outstanding to credit against.
+            # A return only makes sense if they haven't paid for those items yet.
+            if txn_type == "return":
+                return_value = sum(
+                    sum((it.get("amount", 0) or 0) for it in t.get("items", []))
+                    for t in transactions
+                )
+                if return_value <= 0:
+                    raise ValueError("Return must include at least one item with a positive amount.")
+                outstanding = self._get_outstanding(member_id)
+                if outstanding <= 0:
+                    raise ValueError(
+                        "Customer has no outstanding balance — returns can only be recorded against unpaid items."
+                    )
+                if return_value > outstanding + 0.005:
+                    raise ValueError(
+                        f"Return value (₹{return_value:.2f}) exceeds the customer's outstanding (₹{outstanding:.2f})."
+                    )
 
             total_amount = amount_given = 0
             cash_total = upi_total = 0
@@ -115,14 +143,27 @@ class TransactionService:
                 transaction_date=payload.get("transaction_date"),
             )
 
-            # Only sales have line items; repayments don't create a transaction_items row.
+            # Sales and returns both store line items; repayments don't.
+            # For returns the caller sends total_amount=0/amount_given=item_value at the
+            # parent level so remaining_amount goes negative, but the items-row stores the
+            # positive item value (item-level row is internally consistent).
             for txn in transactions:
-                if txn.get("type", "sale") == "sale" and txn.get("items"):
+                t_type = txn.get("type", "sale")
+                if t_type == "sale" and txn.get("items"):
                     self.insert_transaction_items(
                         transaction_id=transaction_id,
                         items=txn["items"],
                         total_amount=txn["total_amount"],
                         amount_given=txn["amount_given"],
+                        notes=txn.get("notes"),
+                    )
+                elif t_type == "return" and txn.get("items"):
+                    item_value = sum((it.get("amount", 0) or 0) for it in txn["items"])
+                    self.insert_transaction_items(
+                        transaction_id=transaction_id,
+                        items=txn["items"],
+                        total_amount=item_value,
+                        amount_given=item_value,
                         notes=txn.get("notes"),
                     )
 
