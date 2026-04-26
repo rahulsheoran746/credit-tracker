@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import (
     member_routes, transaction_routes, product_routes, loan_routes,
-    auth_routes, user_routes,
+    auth_routes, user_routes, future_order_routes,
 )
 from app.db import init_pool, get_connection_sync
 from app.services.user_service import bootstrap_admin_if_empty
@@ -74,6 +74,7 @@ app.include_router(product_routes.router)
 app.include_router(member_routes.router)
 app.include_router(transaction_routes.router)
 app.include_router(loan_routes.router)
+app.include_router(future_order_routes.router)
 
 # Admin-only
 app.include_router(user_routes.router)

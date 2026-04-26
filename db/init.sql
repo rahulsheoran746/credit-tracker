@@ -90,6 +90,40 @@ CREATE TABLE IF NOT EXISTS loan_repayments (
 CREATE INDEX IF NOT EXISTS idx_loans_member      ON loans(member_id);
 CREATE INDEX IF NOT EXISTS idx_loan_reps_loan    ON loan_repayments(loan_id);
 
+-- Future Orders: customer pre-books bulk items / cattle feed for a later pickup
+-- date. Optional token money is held on the order row (not as a transaction)
+-- and applied at fulfillment time.
+CREATE TABLE IF NOT EXISTS future_orders (
+    id SERIAL PRIMARY KEY,
+    member_id INT NOT NULL REFERENCES members(id),
+    pickup_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',     -- 'pending' | 'fulfilled' | 'cancelled'
+    token_cash NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    token_upi  NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    notes TEXT,
+    cancel_reason TEXT,
+    refund_due NUMERIC(10, 2) NOT NULL DEFAULT 0,      -- set on fulfill if token > final bill, or on cancel
+    fulfilled_transaction_id INT REFERENCES transactions(id),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS future_order_items (
+    id SERIAL PRIMARY KEY,
+    future_order_id INT NOT NULL REFERENCES future_orders(id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES products(id),
+    category VARCHAR(20) NOT NULL,
+    name TEXT NOT NULL,
+    unit VARCHAR(10) NOT NULL,
+    quantity NUMERIC(10, 3) NOT NULL,
+    price NUMERIC(10, 2) NOT NULL,                     -- locked at order creation
+    amount NUMERIC(10, 2) NOT NULL                     -- price * quantity (snapshot)
+);
+
+CREATE INDEX IF NOT EXISTS idx_future_orders_member         ON future_orders(member_id);
+CREATE INDEX IF NOT EXISTS idx_future_orders_status_pickup  ON future_orders(status, pickup_date);
+CREATE INDEX IF NOT EXISTS idx_future_order_items_order     ON future_order_items(future_order_id);
+
 INSERT INTO products (category, name, unit, unit_size, price, description) VALUES
 ('sweet', 'Barfi',        'kg',  NULL, 400.00, 'Pure milk Mawa Barfi'),
 ('sweet', 'Besan barfi',  'kg',  NULL, 350.00, 'Pure Desi ghee besan burfi'),
