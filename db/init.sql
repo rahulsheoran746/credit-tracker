@@ -43,10 +43,12 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
     member_id INT NOT NULL REFERENCES members(id),
-    type VARCHAR(20) NOT NULL DEFAULT 'sale',    -- 'sale' | 'product_repay' (more types later)
+    type VARCHAR(20) NOT NULL DEFAULT 'sale',    -- 'sale' | 'product_repay' | 'return' (more types later)
     total_amount NUMERIC(10, 2) NOT NULL,
     amount_paid NUMERIC(10, 2) NOT NULL,
     remaining_amount NUMERIC(10, 2) GENERATED ALWAYS AS (total_amount - amount_paid) STORED,
+    cash_amount NUMERIC(10, 2) DEFAULT 0,         -- cash portion of amount_paid
+    upi_amount  NUMERIC(10, 2) DEFAULT 0,         -- UPI portion (cash + upi must equal amount_paid)
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -67,6 +69,8 @@ CREATE TABLE IF NOT EXISTS loans (
     principal NUMERIC(10, 2) NOT NULL,
     interest_rate_monthly NUMERIC(5, 2) NOT NULL,
     borrow_date DATE NOT NULL,
+    cash_amount NUMERIC(10, 2),                   -- how the principal was disbursed
+    upi_amount  NUMERIC(10, 2),                   -- cash + upi must equal principal
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -77,6 +81,8 @@ CREATE TABLE IF NOT EXISTS loan_repayments (
     loan_id INT NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
     amount NUMERIC(10, 2) NOT NULL,
     repay_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    cash_amount NUMERIC(10, 2) DEFAULT 0,         -- breakdown of the repayment
+    upi_amount  NUMERIC(10, 2) DEFAULT 0,         -- cash + upi must equal amount
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

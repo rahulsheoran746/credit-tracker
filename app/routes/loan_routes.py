@@ -43,7 +43,9 @@ def create_loan(
     try:
         result = LoanService(conn).create_loan(
             loan.member_id, loan.principal, loan.interest_rate_monthly,
-            loan.borrow_date, loan.notes,
+            loan.borrow_date,
+            cash_amount=loan.cash_amount, upi_amount=loan.upi_amount,
+            notes=loan.notes,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -53,6 +55,7 @@ def create_loan(
         "member_id": loan.member_id,
         "principal": loan.principal,
         "rate": loan.interest_rate_monthly,
+        "cash": loan.cash_amount, "upi": loan.upi_amount,
     })
     return result
 
@@ -66,7 +69,9 @@ def repay_loan(
 ):
     try:
         result = LoanService(conn).add_repayment(
-            loan_id, repay.amount, repay.repay_date, repay.notes,
+            loan_id, repay.amount, repay.repay_date,
+            cash_amount=repay.cash_amount, upi_amount=repay.upi_amount,
+            notes=repay.notes,
         )
         if not result:
             raise HTTPException(status_code=404, detail="Loan not found")
@@ -76,5 +81,7 @@ def repay_loan(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    log_action(conn, user, "create", "loan_repayment", loan_id, {"amount": repay.amount})
+    log_action(conn, user, "create", "loan_repayment", loan_id, {
+        "amount": repay.amount, "cash": repay.cash_amount, "upi": repay.upi_amount,
+    })
     return result

@@ -67,7 +67,7 @@ def _compute_balance(principal: Decimal, rate_monthly: Decimal, borrow_date: dat
 
 def _loan_row_to_dict(row, repayments=None, include_repayments=False):
     (loan_id, member_id, member_name, member_phone, principal, rate, borrow_date,
-     notes, created_at, updated_at) = row
+     cash_amount, upi_amount, notes, created_at, updated_at) = row
 
     reps = repayments or []
     rep_tuples = [(r[1], r[2]) for r in reps]  # (amount, repay_date)
@@ -84,6 +84,8 @@ def _loan_row_to_dict(row, repayments=None, include_repayments=False):
         "principal": float(principal),
         "interest_rate_monthly": float(rate),
         "borrow_date": borrow_date.isoformat() if borrow_date else None,
+        "cash_amount": float(cash_amount) if cash_amount is not None else None,
+        "upi_amount":  float(upi_amount)  if upi_amount  is not None else None,
         "notes": notes,
         "total_repaid": total_repaid,
         "current_principal": cur_principal,
@@ -99,6 +101,8 @@ def _loan_row_to_dict(row, repayments=None, include_repayments=False):
                 "id": r[0],
                 "amount": float(r[1]),
                 "repay_date": r[2].isoformat() if r[2] else None,
+                "cash_amount": float(r[5]) if len(r) > 5 and r[5] is not None else None,
+                "upi_amount":  float(r[6]) if len(r) > 6 and r[6] is not None else None,
                 "notes": r[3],
                 "created_at": r[4].isoformat() if r[4] else None,
             }
@@ -110,6 +114,7 @@ def _loan_row_to_dict(row, repayments=None, include_repayments=False):
 _LOAN_SELECT = """
 SELECT l.id, l.member_id, m.name, m.phone,
        l.principal, l.interest_rate_monthly, l.borrow_date,
+       l.cash_amount, l.upi_amount,
        l.notes, l.created_at, l.updated_at
 FROM loans l
 JOIN members m ON m.id = l.member_id
@@ -124,7 +129,8 @@ class LoanService:
         with self.conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, amount, repay_date, notes, created_at
+                SELECT id, amount, repay_date, notes, created_at,
+                       cash_amount, upi_amount
                 FROM loan_repayments
                 WHERE loan_id = %s
                 ORDER BY repay_date ASC, id ASC
@@ -175,7 +181,8 @@ class LoanService:
             totals[l["member_id"]] = totals.get(l["member_id"], 0.0) + l["total_owed"]
         return totals
 
-    def create_loan(self, member_id, principal, rate, borrow_date, notes=None):
+    def create_loan(self, member_id, principal, rate, borrow_date,
+                    cash_amount=0, upi_amount=0, notes=None):
         if principal is None or principal <= 0:
             raise ValueError("Principal must be greater than zero")
         if rate is None or rate < 0:
@@ -183,17 +190,20 @@ class LoanService:
         with self.conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO loans (member_id, principal, interest_rate_monthly, borrow_date, notes)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO loans (member_id, principal, interest_rate_monthly, borrow_date,
+                                   cash_amount, upi_amount, notes)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (member_id, principal, rate, borrow_date, notes),
+                (member_id, principal, rate, borrow_date,
+                 cash_amount, upi_amount, notes),
             )
             new_id = cur.fetchone()[0]
         self.conn.commit()
         return self.get_loan(new_id)
 
-    def add_repayment(self, loan_id, amount, repay_date, notes=None):
+    def add_repayment(self, loan_id, amount, repay_date,
+                      cash_amount=0, upi_amount=0, notes=None):
         if amount is None or amount <= 0:
             raise ValueError("Repayment amount must be greater than zero")
         # Verify loan exists
@@ -203,11 +213,12 @@ class LoanService:
                 return None
             cur.execute(
                 """
-                INSERT INTO loan_repayments (loan_id, amount, repay_date, notes)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO loan_repayments (loan_id, amount, repay_date,
+                                             cash_amount, upi_amount, notes)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (loan_id, amount, repay_date, notes),
+                (loan_id, amount, repay_date, cash_amount, upi_amount, notes),
             )
             cur.execute(
                 "UPDATE loans SET updated_at = CURRENT_TIMESTAMP WHERE id = %s",

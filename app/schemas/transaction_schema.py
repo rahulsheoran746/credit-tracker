@@ -14,10 +14,12 @@ class LineItem(BaseModel):
 
 
 class TransactionBlock(BaseModel):
-    type: str = 'sale'                # 'sale' | 'product_repay'
+    type: str = 'sale'                # 'sale' | 'product_repay' | 'return'
     items: List[LineItem] = []        # empty for repayments
     total_amount: float
     amount_given: float
+    cash_amount: float = 0            # cash portion of amount_given
+    upi_amount: float = 0             # upi portion (cash + upi must equal amount_given)
     notes: Optional[str] = None
 
 
@@ -63,6 +65,8 @@ class TransactionDetail(BaseModel):
     total_amount: float
     amount_paid: float
     remaining_amount: float
+    cash_amount: Optional[float] = None    # NULL = pre-feature historical entry
+    upi_amount:  Optional[float] = None
     items: List[ItemDetail] = []
 
 

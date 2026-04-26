@@ -40,29 +40,38 @@ class TransactionService:
             return member_id
 
     def insert_transaction(self, member_id, txn_type, total_amount, amount_paid,
+                           cash_amount=0, upi_amount=0,
                            description=None, transaction_date=None):
         """
         transaction_date: optional datetime to override DB default CURRENT_TIMESTAMP.
         Used for backdated entries (e.g. a paper-ledger entry being digitised at night).
+
+        cash_amount + upi_amount must equal amount_paid for new entries; backend
+        accepts whatever the caller sends (no constraint enforced at DB level so
+        legacy rows with NULL still work).
         """
         with self.conn.cursor() as cur:
             if transaction_date is not None:
                 cur.execute(
                     """
-                    INSERT INTO transactions (member_id, type, total_amount, amount_paid, description, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO transactions (member_id, type, total_amount, amount_paid,
+                                              cash_amount, upi_amount, description, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
-                    (member_id, txn_type, total_amount, amount_paid, description, transaction_date),
+                    (member_id, txn_type, total_amount, amount_paid,
+                     cash_amount, upi_amount, description, transaction_date),
                 )
             else:
                 cur.execute(
                     """
-                    INSERT INTO transactions (member_id, type, total_amount, amount_paid, description)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO transactions (member_id, type, total_amount, amount_paid,
+                                              cash_amount, upi_amount, description)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
-                    (member_id, txn_type, total_amount, amount_paid, description),
+                    (member_id, txn_type, total_amount, amount_paid,
+                     cash_amount, upi_amount, description),
                 )
             transaction_id = cur.fetchone()[0]
         return transaction_id
@@ -88,16 +97,21 @@ class TransactionService:
             txn_type = transactions[0].get("type", "sale") if transactions else "sale"
 
             total_amount = amount_given = 0
+            cash_total = upi_total = 0
             for t in transactions:
                 total_amount += t["total_amount"]
                 amount_given += t["amount_given"]
+                cash_total   += t.get("cash_amount", 0) or 0
+                upi_total    += t.get("upi_amount",  0) or 0
 
             transaction_id = self.insert_transaction(
                 member_id,
                 txn_type,
                 total_amount,
                 amount_given,
-                payload.get("description"),
+                cash_amount=cash_total,
+                upi_amount=upi_total,
+                description=payload.get("description"),
                 transaction_date=payload.get("transaction_date"),
             )
 
@@ -139,6 +153,8 @@ class TransactionService:
                     'total_amount',     t.total_amount,
                     'amount_paid',      t.amount_paid,
                     'remaining_amount', t.remaining_amount,
+                    'cash_amount',      t.cash_amount,
+                    'upi_amount',       t.upi_amount,
                     'items',            COALESCE(ts.items, '[]'::jsonb)
                 )
                 ORDER BY t.created_at DESC
