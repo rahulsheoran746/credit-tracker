@@ -1,8 +1,34 @@
 import logging
+import re
 from app.auth.security import hash_password, verify_password
 from app.schemas.user_schema import ROLES
 
 logger = logging.getLogger(__name__)
+
+
+_PASS_UPPER   = re.compile(r"[A-Z]")
+_PASS_DIGIT   = re.compile(r"\d")
+_PASS_SPECIAL = re.compile(r"[^A-Za-z0-9\s]")
+
+
+def _validate_password(p: str) -> None:
+    """
+    Enforce password strength rules. Lists ALL failing rules at once so the
+    user fixes everything in one go instead of one rule per submit.
+    """
+    if not p:
+        raise ValueError("Password is required")
+    problems = []
+    if len(p) < 8:
+        problems.append("at least 8 characters")
+    if not _PASS_UPPER.search(p):
+        problems.append("at least one capital letter")
+    if not _PASS_DIGIT.search(p):
+        problems.append("at least one digit")
+    if not _PASS_SPECIAL.search(p):
+        problems.append("at least one special character (e.g. ! @ # $)")
+    if problems:
+        raise ValueError("Password must contain " + ", ".join(problems) + ".")
 
 
 def _row_to_user(row, include_hash=False) -> dict:
@@ -77,8 +103,7 @@ class UserService:
         username = (username or "").strip().lower()
         if not username:
             raise ValueError("Username is required")
-        if len(password) < 6:
-            raise ValueError("Password must be at least 6 characters")
+        _validate_password(password)
 
         with self.conn.cursor() as cur:
             # Uniqueness check is also case-insensitive
@@ -127,8 +152,7 @@ class UserService:
         target user's existing sessions (incl. the device they're on) are kicked
         out — they must log in fresh with the new temp password.
         """
-        if len(new_password) < 6:
-            raise ValueError("Password must be at least 6 characters")
+        _validate_password(new_password)
         with self.conn.cursor() as cur:
             cur.execute(
                 """
@@ -161,8 +185,7 @@ class UserService:
             row = cur.fetchone()
         if not row or not verify_password(current_password, row[0]):
             raise ValueError("Current password is incorrect")
-        if len(new_password) < 6:
-            raise ValueError("New password must be at least 6 characters")
+        _validate_password(new_password)
         with self.conn.cursor() as cur:
             cur.execute(
                 """

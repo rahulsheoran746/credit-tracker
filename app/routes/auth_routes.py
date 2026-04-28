@@ -26,9 +26,17 @@ def login(req: LoginRequest, conn=Depends(get_connection)):
 
     user = UserService(conn).authenticate(req.username, req.password)
     if not user:
-        rate_limit.register_failure(rl_key)
+        remaining = rate_limit.register_failure(rl_key)
         log_action(conn, None, "login_failed", "user", None, {"username": req.username})
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        # After WARN_AFTER failures, surface how many tries remain so the
+        # worker knows the lockout is approaching.
+        failures = rate_limit.MAX_ATTEMPTS - remaining
+        if failures >= rate_limit.WARN_AFTER:
+            attempt_word = "attempt" if remaining == 1 else "attempts"
+            detail = f"Invalid username or password. {remaining} {attempt_word} remaining before lockout."
+        else:
+            detail = "Invalid username or password"
+        raise HTTPException(status_code=401, detail=detail)
 
     rate_limit.clear(rl_key)
     token = create_access_token(
