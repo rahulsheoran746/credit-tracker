@@ -26,8 +26,8 @@ FILE="$1"
 LOCAL="/tmp/${FILE}"
 CONTAINER="shiv-postgres"
 
-echo "Downloading s3://${S3_BACKUP_BUCKET}/shiv-diary/${FILE}..."
-aws s3 cp "s3://${S3_BACKUP_BUCKET}/shiv-diary/${FILE}" "$LOCAL"
+echo "Downloading s3://${S3_BACKUP_BUCKET}/shiv-dairy/${FILE}..."
+aws s3 cp "s3://${S3_BACKUP_BUCKET}/shiv-dairy/${FILE}" "$LOCAL"
 
 read -rp "About to WIPE and RESTORE '${DB_NAME}' from this backup. Continue? (yes/no) " ans
 if [ "$ans" != "yes" ]; then

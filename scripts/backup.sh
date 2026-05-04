@@ -26,7 +26,7 @@ CONTAINER="shiv-postgres"
 DATE=$(date +%Y-%m-%d_%H-%M-%S)
 FILE="shiv-${DATE}.sql.gz"
 LOCAL="/tmp/${FILE}"
-S3_KEY="shiv-diary/${FILE}"
+S3_KEY="shiv-dairy/${FILE}"
 
 echo "[$(date)] Starting backup..."
 

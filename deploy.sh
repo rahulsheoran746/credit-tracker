@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command deploy for the Shiv Diary production VM.
+# One-command deploy for the Shiv Dairy production VM.
 #
 # Pulls latest code from GitHub for both repos, rebuilds containers,
 # and restarts only the services whose images actually changed.
